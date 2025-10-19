@@ -60,7 +60,7 @@ public:
   static const uint32_t SPIN_TELEM_STATS = 100;
   static const uint16_t LIDAR_BUF_LEN = 400;
   static const uint16_t LIDAR_SERIAL_RX_BUF_LEN = 1024;
-  static const uint32_t WIFI_CONN_TIMEOUT_MS = 30000;
+  static const uint32_t WIFI_CONN_TIMEOUT_MS = 10000;
   static constexpr char * SSID_AP = (char *) "KAIA.AI";
   static const uint32_t MONITOR_BAUD = 115200;
   static const uint8_t UNDEFINED_GPIO = 255;
@@ -72,7 +72,7 @@ public:
   //static constexpr char * UROS_DIAG_TOPIC_NAME = (char *)"diagnostics";
   static constexpr char * UROS_CMD_VEL_TOPIC_NAME = (char *)"cmd_vel";
   static const uint32_t UROS_PING_PUB_PERIOD_US = 10*1000*1000;
-  static const uint32_t UROS_TELEM_PUB_PERIOD_US = 50*1000;
+  static const uint32_t UROS_TELEM_PUB_PERIOD_US = 250*1000;
   static const uint32_t UROS_TIME_SYNC_TIMEOUT_MS = 1000;
   static const uint32_t UROS_PARAMS_UPDATE_PERIOD_US = 500*1000;
 
@@ -105,10 +105,16 @@ public:
   static constexpr char * UROS_PARAM_BASE_WHEEL_TRACK = (char *)"base.wheel.track";
   static constexpr char * UROS_PARAM_BASE_WHEEL_DIA = (char *)"base.wheel.diameter";
 
+struct WiFiNetwork {
+    String ssid;
+    String pass;
+    String dest_ip;
+  };
+
 public:
-  String ssid = "";
-  String pass = "";
-  String dest_ip = "";
+  WiFiNetwork networks[5];
+  int network_count = 0;
+  String mdns_service_name = "ros2-agent";
   String board_manufacturer = "N/A";
   String board_model = "N/A";
   String board_version = "N/A";
@@ -270,14 +276,30 @@ public:
     //Serial.println(pvalue);
 
     // TODO check for errors, return error as string
+
+    if (nlevels == 2 && lname[0] == "networks") {
+      if (network_count < 5) {
+        if (lname[1] == "ssid") {
+          if (networks[network_count].ssid.length() > 0 && networks[network_count].dest_ip.length() > 0) {
+            network_count++;
+          }
+          if (network_count < 5)
+            networks[network_count].ssid = trimString(pvalue);
+        } else if (lname[1] == "pass") {
+          if (network_count < 5)
+            networks[network_count].pass = trimString(pvalue);
+        } else if (lname[1] == "dest_ip") {
+          if (network_count < 5)
+            networks[network_count].dest_ip = trimString(pvalue);
+          if (network_count < 5)
+            network_count++;
+        }
+      }
+      return;
+    }
+
     if (nlevels == 1) {
-      if (lname[0] == "ssid")
-        ssid = trimString(pvalue);
-      else if (lname[0] == "pass")
-        pass = trimString(pvalue);
-      else if (lname[0] == "dest_ip")
-        dest_ip = trimString(pvalue);
-      else if (lname[0] == "dest_port")
+      if (lname[0] == "dest_port")
         dest_port = (unsigned int) pvalue.toInt();
       return;
     }
@@ -289,6 +311,12 @@ public:
         board_model = trimString(pvalue);
       else if (lname[1] == "version")
         board_version = trimString(pvalue);
+      return;
+    }
+
+    if (nlevels == 2 && lname[0] == "microros") {
+      if (lname[1] == "mdns_service_name")
+        mdns_service_name = trimString(pvalue);
       return;
     }
 

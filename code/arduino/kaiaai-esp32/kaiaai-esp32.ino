@@ -26,6 +26,8 @@
 #include "ros.h"
 #include "adc.h"
 #include <SPIFFS.h>
+#include <Arduino.h>
+#include <ESPmDNS.h>
 
 CONFIG cfg;
 kaiaai_msgs__msg__JointPosVel joint[MOTOR_COUNT];
@@ -185,52 +187,74 @@ void updateSpeedRamp() {
 
 String set_param_callback(const char * param_name, const char * param_value) {
 
-  static String text;
+  static String network_text = "networks:\n";
+  static String microros_text = "";
 
   if (param_name == NULL) {
-    write_file(cfg.NETWORK_YAML_PATH, text.c_str());
+    String network_config = network_text;
+    if (microros_text.length() > 0) {
+      network_config += "microros:\n" + microros_text;
+    }
+    write_file(cfg.NETWORK_YAML_PATH, network_config.c_str());
     Serial.println(", restarting...");
     delay(100);
     ESP.restart();
     return "";
   } else {
-    text = text + String(param_name) + ": " + String(param_value) + '\n';
+    String name = String(param_name);
+    Serial.print(name);
+    Serial.print("=");
+    Serial.println(String(param_value));
+
+    if (name.startsWith("ssid")) {
+        network_text += "  ssid: " + String(param_value) + "\n";
+    } else if (name.startsWith("pass")) {
+        network_text += "  pass: " + String(param_value) + "\n";
+    } else if (name.startsWith("dest_ip")) {
+        network_text += "  dest_ip: " + String(param_value) + "\n";
+    } else if (name.startsWith("mdns_service_name")) {
+        microros_text += "  mdns_service_name: " + String(param_value) + "\n";
+    }
     return strcmp(param_name, "pass") == 0 ? "****" : String(param_value);
   }
 }
 
-static inline bool initWiFi(const String & ssid, const String & passw) {
+static inline bool initWiFi() {
+  for (int i = 0; i < cfg.network_count; i++) {
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(cfg.networks[i].ssid, cfg.networks[i].pass);
 
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, passw);
+    const uint32_t blink_delay = 500;
+    unsigned long startMillis = millis();
 
-  const uint32_t blink_delay = 500;
-  unsigned long startMillis = millis();
+    while (WiFi.status() != WL_CONNECTED) {
+      Serial.println();
+      Serial.print("Connecting to WiFi ");
+      Serial.print(cfg.networks[i].ssid);
+      Serial.print(" ...");
 
-  while (WiFi.status() != WL_CONNECTED) {
-    Serial.println();
-    Serial.print("Connecting to WiFi ");
-    Serial.print(ssid);
-    Serial.print(" ...");
+      if (millis() - startMillis >= cfg.WIFI_CONN_TIMEOUT_MS) {
+        Serial.println(" timed out");
+        break;
+      }
 
-    if (millis() - startMillis >= cfg.WIFI_CONN_TIMEOUT_MS) {
-      Serial.println(" timed out");
-      return false;
+      digiWrite(cfg.led_sys_gpio, HIGH, cfg.led_sys_invert);
+      delay(blink_delay);
+      digiWrite(cfg.led_sys_gpio, LOW, cfg.led_sys_invert);
+      //Serial.print('.'); // F('.') crashes
+      delay(blink_delay);
     }
 
-    digiWrite(cfg.led_sys_gpio, HIGH, cfg.led_sys_invert);
-    delay(blink_delay);
-    digiWrite(cfg.led_sys_gpio, LOW, cfg.led_sys_invert);
-    //Serial.print('.'); // F('.') crashes
-    delay(blink_delay);
+    if (WiFi.status() == WL_CONNECTED) {
+      digiWrite(cfg.led_sys_gpio, LOW, cfg.led_sys_invert);
+      Serial.print(" connected, ");
+      Serial.print("IP ");
+      Serial.println(WiFi.localIP());
+      //printWiFiChannel();
+      return true;
+    }
   }
-
-  digiWrite(cfg.led_sys_gpio, LOW, cfg.led_sys_invert);
-  Serial.print(" connected, ");
-  Serial.print("IP ");
-  Serial.println(WiFi.localIP());
-  //printWiFiChannel();
-  return true;
+  return false;
 }
 
 void spinTelem(bool force_pub) {
@@ -383,7 +407,7 @@ void spinPing() {
   
   if (step_time_us >= cfg.UROS_PING_PUB_PERIOD_US) {
     // timeout_ms, attempts
-    rmw_uros_ping_agent(1, 1); //rmw_ret_t rc =
+    rmw_uros_ping_agent(1, 1); //rmw_ret_t rc = 
     ping_prev_pub_time_us = time_now_us;
     //Serial.println(rc == RCL_RET_OK ? "Ping OK" : "Ping error");
   }
@@ -524,10 +548,41 @@ void error_loop(int n_blinks){
 }
 */
 
+void debugNetworkYaml() {
+  
+  File root = SPIFFS.open("/");
+  if (!root) {
+    Serial.println("Failed to open root directory");
+    return;
+  }
+  File file = root.openNextFile();
+    
+  while (file) {
+    if (strcmp(file.name(), "network.yaml") == 0) {
+      Serial.println("Displaying contents of network.yaml:");
+      Serial.println("\n=====================================");
+
+      while (file.available()) {
+        Serial.write(file.read());
+      }
+      
+      Serial.println("\n=====================================");
+    }
+    file.close();
+    file = root.openNextFile();
+  }
+}
+
 void setup() {
+  Serial.begin(cfg.MONITOR_BAUD);
+  
+  if (!SPIFFS.begin(true)) {
+    Serial.println("An Error has occurred while mounting SPIFFS");
+    return;
+  }
 
   bool spiffs_ok = SPIFFS.begin(true);
-//  blink_error_code(cfg.ERR_SPIFFS_INIT);
+  //  blink_error_code(cfg.ERR_SPIFFS_INIT);
   bool html_exists = false;
   if (spiffs_ok)
     html_exists = SPIFFS.exists(cfg.INDEX_HTML_PATH);
@@ -542,7 +597,6 @@ void setup() {
   if (config_yaml_exists)
     config_yaml_err = cfg.load(cfg.CONFIG_YAML_PATH);
 
-  Serial.begin(cfg.MONITOR_BAUD);
   setPinDrive(cfg.monitor_gpio_tx);
   while(!Serial)
     delay(0);
@@ -585,6 +639,8 @@ void setup() {
       Serial.println("loaded OK");
   }
 
+  //debugNetworkYaml();
+
   setPinMode(cfg.led_sys_gpio, OUTPUT);
   digiWrite(cfg.led_sys_gpio, HIGH, cfg.led_sys_invert);
 
@@ -592,19 +648,15 @@ void setup() {
 
   bool launch_web_config = false;
 
-  if (cfg.ssid.length() == 0) {
-    Serial.println("WiFi SSID unknown");
-    launch_web_config = true;
-  }
-
-  if (cfg.dest_ip.length() == 0) {
-    Serial.println("dest_ip unknown");
+  if (cfg.network_count == 0) {
+    Serial.println("No WiFi networks configured.");
     launch_web_config = true;
   }
 
   Serial.println("To enter web config push-and-release EN, "
     "then push-and-hold BOOT within 1 sec");
   delay(1000);
+  
   launch_web_config |= isBootButtonPressed(cfg.RESET_SETTINGS_HOLD_SEC);
 
   if (launch_web_config) {
@@ -629,9 +681,55 @@ void setup() {
   setupADC();
   setupMotors();
 
-  while(!initWiFi(cfg.ssid, cfg.pass));
+  if (!initWiFi()) {
+    Serial.println("Failed to connect to any WiFi network. Entering web config.");
+    AP ap;
+    ap.obtainConfig(cfg.SSID_AP, set_param_callback);
+    return;
+  }
 
-  set_microros_wifi_transports(cfg.dest_ip.c_str(), cfg.dest_port);
+  String dest_ip = "1.2.3.4";
+  int dest_port = cfg.dest_port;
+
+  Serial.println("Searching for ROS2 agent via mDNS...");
+  if (MDNS.begin("kaiaai-esp32")) {
+    Serial.println("mDNS responder started");
+    Serial.print("Robot Service Name : ");
+    Serial.println(cfg.mdns_service_name.c_str());
+    int n = MDNS.queryService(cfg.mdns_service_name.c_str(), "udp");
+    if (n == 0) {
+        delay(1000);
+        n = MDNS.queryService(cfg.mdns_service_name.c_str(), "udp");
+    }
+
+    if (n == 0) {
+      Serial.println("No ROS2 agent found via mDNS.");
+      Serial.println("Double check that /etc/avahi/services/ros2-agent.service has the correct name");
+      Serial.println("and is running on the ROS2 agent - sudo systemctl restart avahi-daemon");
+      for (int i = 0; i < cfg.network_count; i++) {
+        if (cfg.networks[i].ssid == WiFi.SSID()) {
+          dest_ip = cfg.networks[i].dest_ip;
+          break;
+        }
+      }
+    } else {
+      Serial.println("mDNS ROS2 agent service found");
+      dest_ip = MDNS.IP(0).toString();
+      dest_port = MDNS.port(0);
+      Serial.print("Found ROS2 agent at: ");
+      Serial.print(dest_ip);
+      Serial.print(":");
+      Serial.println(dest_port);
+    }
+    MDNS.end();
+  }
+
+  if (dest_ip == "" || dest_ip == "0.0.0.0") {
+      Serial.println("Could not find ROS2 agent IP. Please configure it in the YAML file or check mDNS service.");
+      idle();
+  }
+
+  set_microros_wifi_transports(dest_ip.c_str(), dest_port);
   delay(2000);
 
   setupMicroROS(&twist_sub_callback);
@@ -651,7 +749,7 @@ void setup() {
 
   //Serial.print("Diagnostics pub ");
   //Serial.println(pubDiagnostics() ? "OK" : "FAILED");
-//  pubDiagnostics();
+  //  pubDiagnostics();
   
   resetTelemMsg();
   

@@ -217,9 +217,7 @@ rcl_ret_t setupMicroROS(rclc_subscription_callback_t twist_sub_callback) {
 
   while(true) {
     digitalWrite(cfg.led_sys_gpio, !digitalRead(cfg.led_sys_gpio));
-    Serial.print(F("Connecting to Micro-ROS agent "));
-    Serial.print(cfg.dest_ip);
-    Serial.print(" ... ");
+    Serial.print(F("Connecting to Micro-ROS agent ... "));
   
     //rclc_support_init(&support, 0, NULL, &allocator);
     rc = rclc_support_init_with_options(&support, 0, NULL, &init_options, &allocator);
