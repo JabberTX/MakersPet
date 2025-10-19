@@ -1,7 +1,7 @@
 #!/bin/bash
 # Install Kaia.ai ROS2 platform
 #   https://github.com/kaiaai/install
-. /opt/ros/iron/setup.bash
+. /opt/ros/kilted/setup.bash
 mkdir ~/uros_ws && cd ~/uros_ws
 git clone --depth 1 -b kilted https://github.com/micro-ROS/micro_ros_setup.git src/micro_ros_setup
 sudo apt update
@@ -25,7 +25,7 @@ cd ~
 export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 export MICROROS_DISABLE_SHM=1
 
-cd ~/makerpet_ws
+mkdir ~/makerpet_ws && cd ~/makerpet_ws
 sudo apt install -y python3-pip nano inotify-tools \
 ros-kilted-ros-gz ros-kilted-joint-state-publisher-gui \
 ros-kilted-cartographer-ros ros-kilted-ros-gz-sim \
