@@ -25,7 +25,7 @@ cd ~
 export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 export MICROROS_DISABLE_SHM=1
 
-cd ~/makerpet_ws
+cd ~/makerspet_ws
 sudo apt install -y python3-pip nano inotify-tools \
 ros-kilted-ros-gz ros-kilted-joint-state-publisher-gui \
 ros-kilted-cartographer-ros ros-kilted-ros-gz-sim \
