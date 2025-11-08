@@ -8,9 +8,11 @@ sudo apt update
 sudo apt install -y ed python3-pip
 sudo apt install -y ros-kilted-rmw-fastrtps-cpp
 sudo apt remove -y ros-kilted-rmw-cyclonedds-cpp
+
 sudo rosdep init
 rosdep update --rosdistro kilted
 rosdep install --from-paths src --ignore-src -y
+
 colcon build
 . install/local_setup.sh
 ros2 run micro_ros_setup create_agent_ws.sh
@@ -51,13 +53,22 @@ git clone --depth 1 https://github.com/kaiaai/kaiaai_apps src/kaiaai_apps
 git clone --depth 1 https://github.com/kaiaai/m-explore-ros2 src/m-explore-ros2
 git clone --depth 1 https://github.com/kaiaai/auto_mapper src/auto_mapper
 git clone --depth 1 https://github.com/kaiaai/nav2_wfe src/nav2_wfe
+
+# Modify kaiaai_gazebo to use ros_gz_sim and ros_gz_bridge instead of gazebo_ros_pkgs
+sed -i '/find_package(gazebo_ros_pkgs REQUIRED)/a find_package(ros_gz_sim REQUIRED)' src/kaiaai_gazebo/CMakeLists.txt
+sed -i '/find_package(gazebo_ros_pkgs REQUIRED)/a find_package(ros_gz_bridge REQUIRED)' src/kaiaai_gazebo/CMakeLists.txt
+sed -i '/find_package(gazebo_ros_pkgs REQUIRED)/d' src/kaiaai_gazebo/CMakeLists.txt
+sed -i '/ament_export_dependencies(gazebo_ros_pkgs)/a ament_export_dependencies(ros_gz_sim)' src/kaiaai_gazebo/CMakeLists.txt
+sed -i '/ament_export_dependencies(gazebo_ros_pkgs)/a ament_export_dependencies(ros_gz_bridge)' src/kaiaai_gazebo/CMakeLists.txt
+sed -i '/ament_export_dependencies(gazebo_ros_pkgs)/d' src/kaiaai_gazebo/CMakeLists.txt
+
 colcon build --symlink-install
 rm -rf log/
 mkdir ~/maps
 
 cat <<EOF >> ~/.bashrc
 . ~/uros_ws/install/setup.bash
-. ~/makerpet_ws/install/setup.bash
+. ~/makerspet_ws/install/setup.bash
 alias kaia='ros2 run kaiaai cli'
 
 export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
@@ -65,9 +76,9 @@ export MICROROS_DISABLE_SHM=1
 
 if [ "$MICROROS_DISABLE_SHM" = "1" ] ; then
     if [ "$ROS_LOCALHOST_ONLY" = "1" ] ; then
-        export FASTRTPS_DEFAULT_PROFILES_FILE=~/.ros/disable_fastdds_shm_localhost_only.xml
+        export FASTDDS_DEFAULT_PROFILES_FILE=~/.ros/disable_fastdds_shm_localhost_only.xml
     else
-        export FASTRTPS_DEFAULT_PROFILES_FILE=~/.ros/disable_fastdds_shm.xml
+        export FASTDDS_DEFAULT_PROFILES_FILE=~/.ros/disable_fastdds_shm.xml
     fi
 fi
 
