@@ -25,6 +25,8 @@
 ## Hardware comments
 I used a threaded insert kit that fits my Hakko FX-888D (https://a.co/d/5Wtt7Fi), set to the same temp as the filament used to print the 3D parts.  Slow and steady wins here.
 
+The magnets should just snap firmly into place, if they are loose use a drop of superglue.  Make sure you have the polarization correct!!
+
 # Base Station Software Update
 My goal was to install the firmware with the following system requirements
 - RPi 4
