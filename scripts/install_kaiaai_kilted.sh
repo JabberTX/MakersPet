@@ -1,6 +1,13 @@
 #!/bin/bash
 # Install Kaia.ai ROS2 platform
 #   https://github.com/kaiaai/install
+
+if ! command -v git &> /dev/null; then
+    echo "Git is not installed. Installing it now..."
+    sudo apt update
+    sudo apt install -y git
+fi
+
 . /opt/ros/kilted/setup.bash
 mkdir ~/uros_ws && cd ~/uros_ws
 git clone --depth 1 -b kilted https://github.com/micro-ROS/micro_ros_setup.git src/micro_ros_setup
