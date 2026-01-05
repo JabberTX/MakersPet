@@ -8,7 +8,6 @@ if ! command -v git &> /dev/null; then
     sudo apt install -y git
 fi
 
-. /opt/ros/kilted/setup.bash
 mkdir ~/uros_ws && cd ~/uros_ws
 git clone --depth 1 -b kilted https://github.com/micro-ROS/micro_ros_setup.git src/micro_ros_setup
 sudo apt update
